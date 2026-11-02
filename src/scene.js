@@ -21,6 +21,32 @@ function pbr(scene, name, color, metallic = 0.5, roughness = 0.4, emissive = nul
   return material;
 }
 
+
+function attachWornMetalPbr(material, scene, scale = 1.7) {
+  const base = 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/metal_plate_02/metal_plate_02';
+  const load = (suffix) => {
+    const texture = new Texture(`${base}_${suffix}_2k.jpg`, scene, false, false, Texture.TRILINEAR_SAMPLINGMODE,
+      () => {},
+      (message, exception) => console.warn(`Poly Haven metal map unavailable (${suffix}); procedural material fallback remains active.`, message || exception)
+    );
+    texture.wrapU = Texture.WRAP_ADDRESSMODE;
+    texture.wrapV = Texture.WRAP_ADDRESSMODE;
+    texture.uScale = scale;
+    texture.vScale = scale;
+    texture.anisotropicFilteringLevel = 8;
+    return texture;
+  };
+  material.albedoTexture = load('diff');
+  material.bumpTexture = load('nor_gl');
+  material.metallicTexture = load('arm');
+  material.useAmbientOcclusionFromMetallicTextureRed = true;
+  material.useRoughnessFromMetallicTextureGreen = true;
+  material.useMetallnessFromMetallicTextureBlue = true;
+  material.roughness = 0.48;
+  material.metallic = 0.82;
+  return material;
+}
+
 function makeFloorTexture(scene) {
   const texture = new DynamicTexture('arena-surface-detail', { width: 1024, height: 1024 }, scene, false);
   const ctx = texture.getContext();
@@ -162,6 +188,7 @@ export function createWorld(engine) {
   floor.isPickable = true;
 
   const darkMetal = pbr(scene, 'obsidian-alloy', '#202c31', 0.92, 0.26);
+  const wornMetal = attachWornMetalPbr(pbr(scene, 'polyhaven-worn-industrial-steel', '#8b9998', 0.82, 0.42), scene, 1.8);
   const midMetal = pbr(scene, 'titanium-ceramic', '#657575', 0.72, 0.31);
   const ceramic = pbr(scene, 'bone-ceramic', '#b5b7a9', 0.24, 0.3);
   const blackCeramic = pbr(scene, 'black-ceramic', '#10191e', 0.48, 0.2);
@@ -171,7 +198,7 @@ export function createWorld(engine) {
 
   const platform = MeshBuilder.CreateCylinder('central-reactor-plinth', { diameter: 15.2, height: 0.42, tessellation: 96 }, scene);
   platform.position.y = 0.12;
-  platform.material = darkMetal;
+  platform.material = wornMetal;
   addShadow(platform, shadowGenerator);
 
   const outerRing = MeshBuilder.CreateTorus('outer-inlay-ring', { diameter: 18.8, thickness: 0.16, tessellation: 128 }, scene);
@@ -224,7 +251,7 @@ export function createWorld(engine) {
     ruin.position = vec(x, 1.1, z);
     ruin.rotation.y = angle + 0.25;
     ruin.rotation.z = (i % 2 ? 1 : -1) * 0.08;
-    ruin.material = i % 2 ? darkMetal : midMetal;
+    ruin.material = i % 2 ? wornMetal : midMetal;
     addShadow(ruin, shadowGenerator);
     const seam = MeshBuilder.CreateBox(`bulkhead-seam-${i}`, { width: 2.3, height: 0.045, depth: 0.04 }, scene);
     seam.position = vec(x, 1.5, z);
@@ -269,7 +296,7 @@ export function createWorld(engine) {
   pipeline.imageProcessing.contrast = 1.18;
   pipeline.imageProcessing.exposure = 1.12;
 
-  const materials = { darkMetal, midMetal, ceramic, blackCeramic, cyan, amber, red };
+  const materials = { darkMetal, midMetal, wornMetal, ceramic, blackCeramic, cyan, amber, red };
   return { scene, camera, floor, shadowGenerator, glow, pipeline, materials, environmentPromise, lights: { ambient, sun, rim, warm } };
 }
 
