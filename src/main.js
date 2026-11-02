@@ -78,7 +78,6 @@ async function bootGame() {
       quality: value => game?.applyQuality(value)
     });
     game = new Game(engine, canvas, ui, audio, input, rendererName);
-    await game.world.environmentPromise;
     boot.classList.add('boot-hidden');
     window.setTimeout(() => boot.remove(), 650);
     engine.runRenderLoop(() => {
