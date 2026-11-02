@@ -37,3 +37,13 @@ test('pause and resume controls are accessible', async ({ page }) => {
   await page.getByRole('button', { name: /继续|RESUME/i }).click();
   await expect(page.getByRole('dialog', { name: /暂停|PAUSED/i })).toBeHidden();
 });
+
+test('lethal damage opens the defeat summary and allows a fresh run', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /开始远征|START EXPEDITION/i }).click();
+  await page.evaluate(() => window.__NULL_ASCENT__.game.hurt(9999));
+  await expect(page.getByRole('dialog', { name: /远征结算/i })).toBeVisible();
+  await page.getByRole('button', { name: /再次远征/i }).click();
+  await expect(page.locator('[data-testid="game-hud"]')).toBeVisible();
+  await expect(page.getByRole('dialog', { name: /远征结算/i })).toBeHidden();
+});
