@@ -127,13 +127,15 @@ export function applyUpgrade(state, upgrade) {
     if (next.build.tags[tag] >= 3 && !next.build.synergy.includes(tag)) next.build.synergy.push(tag);
   }
   const effect = upgrade.effect ?? {};
-  for (const key of ['damage', 'critChance', 'critDamage', 'shieldRegen', 'dashDamage', 'specialGain', 'chain', 'lastStand', 'opener', 'pickupHeal']) {
+  if (effect.damage !== undefined) next.player.damage *= 1 + effect.damage;
+  if (effect.projectileSpeed !== undefined) next.player.projectileSpeed *= effect.projectileSpeed;
+  for (const key of ['critChance', 'critDamage', 'shieldRegen', 'dashDamage', 'specialGain', 'chain', 'lastStand', 'opener', 'pickupHeal']) {
     if (effect[key] !== undefined) next.player[key] = (next.player[key] ?? 0) + effect[key];
   }
   for (const key of ['fireRate', 'dashCooldown']) {
     if (effect[key] !== undefined) next.player[key] *= effect[key];
   }
-  for (const key of ['projectileSpeed', 'projectiles', 'dashDistance']) {
+  for (const key of ['projectiles', 'dashDistance']) {
     if (effect[key] !== undefined) next.player[key] = (next.player[key] ?? 0) + effect[key];
   }
   if (effect.maxHp) { next.player.maxHp += effect.maxHp; next.player.hp = Math.min(next.player.maxHp, next.player.hp + (effect.heal ?? effect.maxHp)); }
