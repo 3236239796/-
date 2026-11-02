@@ -76,7 +76,7 @@ export class Game {
     this.projectiles.forEach(item => item.mesh.dispose());
     this.enemyProjectiles.forEach(item => item.mesh.dispose());
     this.pickups.forEach(item => item.mesh.dispose());
-    this.telegraphs.forEach(item => item.mesh.dispose());
+    this.telegraphs.forEach(item => item.ring?.dispose());
     this.particles.forEach(item => item.mesh.dispose());
     this.enemies = [];
     this.projectiles = [];
@@ -285,8 +285,8 @@ export class Game {
       const distance = flatDistance(this.player.position, action.position);
       if (distance <= action.radius + 0.52 && (this.invulnerable ?? 0) <= 0) this.hurt(enemy.stats.damage);
       if (action.type === 'charge') {
-        const direction = flatDirection(action.position, this.player.position);
-        enemy.mesh.position.addInPlace(direction.scale(-1.2));
+        const direction = flatDirection(enemy.mesh.position, this.player.position);
+        enemy.mesh.position.addInPlace(direction.scale(2.4));
       }
       this.particles.push(...createImpact(this.scene, this.materials, action.position.add(new Vector3(0, 0.15, 0)), 'red', 9));
     } else if (action.type === 'shot') {
@@ -347,6 +347,11 @@ export class Game {
 
   killEnemy(enemy) {
     enemy.dead = true;
+    if (enemy.action?.ring) {
+      enemy.action.ring.dispose();
+      this.telegraphs = this.telegraphs.filter(item => item !== enemy.action);
+      enemy.action = null;
+    }
     this.state.progress.kills += 1;
     this.state.progress.combo += 1;
     this.state.progress.bestCombo = Math.max(this.state.progress.bestCombo, this.state.progress.combo);
