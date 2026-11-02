@@ -361,13 +361,13 @@ export class Game {
     if (this.state.status === 'defeat') this.finish(false);
   }
 
-  damageEnemy(enemy, amount, special = false) {
+  damageEnemy(enemy, amount, special = false, critical = false) {
     if (enemy.dead) return;
     const wasAlive = enemy.hp > 0;
     enemy.hp = Math.max(0, enemy.hp - amount);
     enemy.hitFlash = 0.12;
     this.state.stats.damageDealt += amount;
-    this.particles.push(...createImpact(this.scene, this.materials, enemy.mesh.position.add(new Vector3(0, 1, 0)), special ? 'amber' : 'cyan', special ? 10 : 5));
+    this.particles.push(...createImpact(this.scene, this.materials, enemy.mesh.position.add(new Vector3(0, 1, 0)), special || critical ? 'amber' : 'cyan', special ? 10 : 5));
     if (enemy.hp <= 0 && wasAlive) this.killEnemy(enemy);
     else if (!special) this.audio.play('hit', amount > 50 ? 1.3 : 0.6);
     if (enemy.boss) {
@@ -535,7 +535,7 @@ export class Game {
       const target = this.enemies.find(enemy => flatDistance(projectile.mesh.position, enemy.mesh.position.add(new Vector3(0, 1, 0))) < enemy.stats.radius + 0.42);
       if (target) {
         const damage = projectile.crit ? projectile.damage * this.state.player.critDamage : projectile.damage;
-        this.damageEnemy(target, damage, projectile.crit);
+        this.damageEnemy(target, damage, false, projectile.crit);
         if (projectile.pierce > 0) projectile.pierce -= 1;
         else {
           projectile.mesh.dispose();
