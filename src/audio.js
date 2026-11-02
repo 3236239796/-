@@ -14,6 +14,7 @@ export class AudioDirector {
   }
 
   async unlock() {
+    try {
     if (this.context) {
       if (this.context.state === 'suspended') await this.context.resume();
       return;
@@ -37,6 +38,10 @@ export class AudioDirector {
     this.master.gain.value = this.volume;
     this.startDrone();
     if (this.musicEnabled) this.startMusic();
+    } catch (error) {
+      console.warn('Audio initialization unavailable; continuing silently.', error);
+      this.context = null;
+    }
   }
 
   startDrone() {
