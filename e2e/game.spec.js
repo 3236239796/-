@@ -15,6 +15,16 @@ test('boots the game shell and exposes the playable start flow', async ({ page }
   await page.keyboard.up('w');
   const after = await page.evaluate(() => window.__NULL_ASCENT__.game.player.position.z);
   expect(after).toBeLessThan(before);
+  const box = await page.locator('#renderCanvas').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(500);
+  await page.mouse.up();
+  const shots = await page.evaluate(() => window.__NULL_ASCENT__.game.state.stats.shotsFired);
+  expect(shots).toBeGreaterThan(0);
+  await page.keyboard.press('Shift');
+  const dodges = await page.evaluate(() => window.__NULL_ASCENT__.game.state.stats.dodges);
+  expect(dodges).toBe(1);
   await expect(page.locator('#renderer-status')).toContainText(/WEBGPU|WEBGL2/i);
   expect(errors).toEqual([]);
 });
