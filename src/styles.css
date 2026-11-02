@@ -185,3 +185,17 @@ button { color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *:before, *:after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+.boot { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px; background: radial-gradient(ellipse at 50% 45%, #142d31, #070c10 68%); color: var(--paper); transition: opacity .55s ease, visibility .55s ease; }
+.boot-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+.boot-mark { font-family: 'Barlow Condensed', sans-serif; font-size: 40px; letter-spacing: .2em; }
+.boot-mark span { color: var(--cyan); }
+.boot-line { width: 170px; height: 2px; background: rgba(139,230,210,.16); overflow: hidden; }
+.boot-line:after { content: ''; display: block; width: 40%; height: 100%; background: var(--cyan); box-shadow: 0 0 15px var(--cyan); animation: bootload 1.2s ease-in-out infinite; }
+.boot p { color: #839b96; font-size: 9px; letter-spacing: .2em; }
+.boot-error { max-width: 520px; padding: 28px; text-align: center; background: rgba(8,16,21,.96); border: 1px solid rgba(232,108,93,.4); }
+.boot-error h2 { font-size: 18px; font-weight: 500; }
+.boot-error p { color: #e5a59a; line-height: 1.7; overflow-wrap: anywhere; }
+.boot-error small { display: block; color: var(--muted); margin: 14px 0; }
+.boot-error button { border: 1px solid var(--cyan); color: var(--cyan); background: transparent; padding: 11px 20px; cursor: pointer; }
+@keyframes bootload { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
