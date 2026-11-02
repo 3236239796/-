@@ -44,6 +44,15 @@ export class Game {
     this.invulnerable = 0;
     this.aimPoint = new Vector3(0, 0, -8);
     this.lastHud = 0;
+    this.obstacles = [];
+    for (let i = 0; i < 8; i += 1) {
+      const angle = (i / 8) * Math.PI * 2;
+      this.obstacles.push({ x: Math.cos(angle) * 17.2, z: Math.sin(angle) * 17.2, radius: 0.9 });
+    }
+    for (let i = 0; i < 4; i += 1) {
+      const angle = Math.PI / 4 + i * Math.PI / 2;
+      this.obstacles.push({ x: Math.cos(angle) * 8.8, z: Math.sin(angle) * 8.8, radius: 1.7 });
+    }
     this.meta = this.loadMeta();
     this.quality = localStorage.getItem('null-ascent-quality') || 'high';
     this.applyQuality(this.quality);
@@ -65,7 +74,7 @@ export class Game {
     if (won) this.meta.wins += 1;
     const record = { wave: this.state.progress.wave, time: this.state.progress.elapsed, kills: this.state.progress.kills, won };
     if (!this.meta.best || record.wave > this.meta.best.wave || (record.wave === this.meta.best.wave && record.time > this.meta.best.time)) this.meta.best = record;
-    localStorage.setItem('null-ascent-meta', JSON.stringify(this.meta));
+    try { localStorage.setItem('null-ascent-meta', JSON.stringify(this.meta)); } catch (error) { console.warn('Run record could not be saved.', error); }
   }
 
   resetRun() {
@@ -140,7 +149,7 @@ export class Game {
 
   applyQuality(value) {
     this.quality = value;
-    localStorage.setItem('null-ascent-quality', value);
+    try { localStorage.setItem('null-ascent-quality', value); } catch { /* settings remain active for this session */ }
     const scale = value === 'high' ? 1 : value === 'medium' ? 1.15 : 1.35;
     this.engine.setHardwareScalingLevel(scale);
     this.world.pipeline.samples = value === 'high' ? 4 : 1;
@@ -206,6 +215,25 @@ export class Game {
     });
   }
 
+  resolvePlayerPosition(position) {
+    for (let pass = 0; pass < 3; pass += 1) {
+      for (const obstacle of this.obstacles) {
+        const dx = position.x - obstacle.x;
+        const dz = position.z - obstacle.z;
+        const distance = Math.hypot(dx, dz);
+        const minimum = obstacle.radius + 0.48;
+        if (distance < minimum) {
+          const angle = distance > 0.0001 ? Math.atan2(dz, dx) : Math.random() * Math.PI * 2;
+          position.x = obstacle.x + Math.cos(angle) * minimum;
+          position.z = obstacle.z + Math.sin(angle) * minimum;
+        }
+      }
+    }
+    position.x = clamp(position.x, -18.2, 18.2);
+    position.z = clamp(position.z, -18.2, 18.2);
+    return position;
+  }
+
   fire() {
     if (this.state.cooldowns.shot > 0 || !this.input.pointer.down) return;
     const target = this.getAimPoint();
@@ -235,8 +263,11 @@ export class Game {
     else direction.normalize();
     const start = this.player.position.clone();
     const distance = this.state.player.dashDistance;
-    this.player.position.x = clamp(this.player.position.x + direction.x * distance, -19, 19);
-    this.player.position.z = clamp(this.player.position.z + direction.z * distance, -19, 19);
+    const destination = this.player.position.add(direction.scale(distance));
+    destination.x = clamp(destination.x, -18.2, 18.2);
+    destination.z = clamp(destination.z, -18.2, 18.2);
+    this.resolvePlayerPosition(destination);
+    this.player.position.copyFrom(destination);
     this.state.cooldowns.dash = this.state.player.dashCooldown;
     this.invulnerable = 0.34;
     this.state.stats.dodges += 1;
@@ -422,8 +453,10 @@ export class Game {
       this.finish(true);
       return;
     }
-    this.enemies.forEach(enemy => enemy.mesh.dispose());
+    this.enemies.forEach(enemy => { enemy.action?.ring?.dispose(); enemy.mesh.dispose(); });
     this.enemies = [];
+    this.telegraphs.forEach(action => action.ring?.dispose());
+    this.telegraphs = [];
     this.state.progress.wave += 1;
     this.state.progress.sectorTime = 0;
     this.spawnTimer = 0;
@@ -631,10 +664,14 @@ export class Game {
     if (this.input.pausePressed) { this.pause(); this.input.consumeFrame(); return; }
 
     if (move.lengthSquared() > 0.001) {
-      this.player.position.addInPlace(move.scale(this.state.player.moveSpeed * dt));
-      this.player.position.x = clamp(this.player.position.x, -18.2, 18.2);
-      this.player.position.z = clamp(this.player.position.z, -18.2, 18.2);
+      const destination = this.player.position.add(move.scale(this.state.player.moveSpeed * dt));
+      this.resolvePlayerPosition(destination);
+      this.player.position.copyFrom(destination);
+      this.player.position.y = 0.025 + Math.sin(progress.elapsed * 10) * 0.035;
+    } else {
+      this.player.position.y = Math.sin(progress.elapsed * 2.2) * 0.018;
     }
+    if (this.player.metadata?.core) this.player.metadata.core.scaling.setAll(1 + Math.sin(progress.elapsed * 4.5) * 0.08);
     const aim = this.getAimPoint();
     const aimDirection = flatDirection(this.player.position, aim);
     if (this.input.pointer.inside) this.player.rotation.y = Math.atan2(aimDirection.x, aimDirection.z);
