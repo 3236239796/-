@@ -9,6 +9,7 @@ export class GameUI {
     this.actions = actions;
     this.root.innerHTML = `
       <div class="game-ui">
+        <div class="aim-reticle hidden" id="aim-reticle" aria-hidden="true"><i></i><b></b></div>
         <section class="screen menu-screen" id="menu-screen" aria-label="主菜单">
           <div class="menu-backdrop"></div>
           <div class="menu-top"><span class="brand-mark">N<span>//</span>A</span><span class="menu-build">FIELD OPERATION / 09.01</span><span class="menu-signal"><i></i> SIGNAL STABLE</span></div>
@@ -117,7 +118,7 @@ export class GameUI {
         <div class="renderer-badge" id="renderer-badge">INITIALIZING RENDERER</div>
       </div>
     `;
-    this.el = Object.fromEntries(['menu-screen','hud-layer','upgrade-screen','pause-screen','settings-screen','result-screen','start-run','pause-button','resume-button','settings-button','abandon-button','settings-back','restart-button','menu-button','upgrade-grid','combat-toast','renderer-badge','boss-panel','volume-setting','music-setting','sfx-setting','quality-setting'].map(id => [id, this.root.querySelector(`#${id}`)]));
+    this.el = Object.fromEntries(['menu-screen','hud-layer','upgrade-screen','pause-screen','settings-screen','result-screen','start-run','pause-button','resume-button','settings-button','abandon-button','settings-back','restart-button','menu-button','upgrade-grid','combat-toast','renderer-badge','boss-panel','volume-setting','music-setting','sfx-setting','quality-setting','aim-reticle'].map(id => [id, this.root.querySelector(`#${id}`)]));
     this.el['start-run'].addEventListener('click', () => this.actions.start());
     this.el['pause-button'].addEventListener('click', () => this.actions.pause());
     this.el['resume-button'].addEventListener('click', () => this.actions.resume());
@@ -145,12 +146,14 @@ export class GameUI {
   showGame() {
     this.hideAll();
     this.el['hud-layer'].classList.remove('hidden');
+    this.el['aim-reticle'].classList.remove('hidden');
   }
 
   showPause(stats = {}) {
     this.hideAll();
     this.el['hud-layer'].classList.remove('hidden');
     this.el['pause-screen'].classList.remove('hidden');
+    this.el['aim-reticle'].classList.add('hidden');
     this.root.querySelector('#pause-stats').innerHTML = `<span><b>${String(stats.wave ?? 1).padStart(2,'0')}</b><small>SECTOR</small></span><span><b>${stats.kills ?? 0}</b><small>ELIMINATIONS</small></span><span><b>${formatTime(stats.time ?? 0)}</b><small>TIME</small></span>`;
   }
 
@@ -172,7 +175,12 @@ export class GameUI {
     this.el['upgrade-screen'].classList.remove('hidden');
   }
 
-  hideUpgrade() { this.el['upgrade-screen'].classList.add('hidden'); }
+  hideUpgrade() { this.el['upgrade-screen'].classList.add('hidden'); this.el['aim-reticle'].classList.remove('hidden'); }
+
+  setAim(x, y, visible) {
+    this.el['aim-reticle'].style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    this.el['aim-reticle'].classList.toggle('hidden', !visible);
+  }
 
   update(state, rendererName) {
     const player = state.player;
