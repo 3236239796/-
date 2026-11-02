@@ -674,7 +674,8 @@ export class Game {
     }
     if (this.player.metadata?.core) this.player.metadata.core.scaling.setAll(1 + Math.sin(progress.elapsed * 4.5) * 0.08);
     const aim = this.getAimPoint();
-    const aimDirection = flatDirection(this.player.position, aim);
+    this.ui.setAim(this.input.pointer.x, this.input.pointer.y, this.input.pointer.inside);
+    const aimDirection = flatDirection(this.player.position, aimDirection = aim);
     if (this.input.pointer.inside) this.player.rotation.y = Math.atan2(aimDirection.x, aimDirection.z);
     this.camera.setTarget(this.player.position.add(new Vector3(0, 0.2, 0)));
     this.fire();
