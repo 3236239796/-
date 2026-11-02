@@ -239,8 +239,7 @@ export class Game {
     const target = this.getAimPoint();
     const direction = flatDirection(this.player.position, target);
     this.player.rotation.y = Math.atan2(direction.x, direction.z);
-    const extra = hasSynergy(this.state, 'prism') ? 2 : Math.floor(this.state.player.projectiles);
-    const count = Math.max(1, Math.min(5, extra));
+    const count = clamp(Math.floor(this.state.player.projectiles) + (hasSynergy(this.state, 'prism') ? 1 : 0), 1, 5);
     for (let i = 0; i < count; i += 1) {
       const spread = (i - (count - 1) / 2) * 0.075;
       const rotated = new Vector3(
