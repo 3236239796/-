@@ -54,7 +54,7 @@ export class Game {
       this.obstacles.push({ x: Math.cos(angle) * 8.8, z: Math.sin(angle) * 8.8, radius: 1.7 });
     }
     this.meta = this.loadMeta();
-    this.quality = localStorage.getItem('null-ascent-quality') || 'high';
+    try { this.quality = localStorage.getItem('null-ascent-quality') || 'high'; } catch { this.quality = 'high'; }
     this.applyQuality(this.quality);
     this.ui.showMenu(this.meta.best);
     this.ui.setQuality(this.quality);
@@ -652,7 +652,8 @@ export class Game {
     this.comboTimer -= dt;
     if (this.comboTimer <= 0) progress.combo = 0;
     if (this.state.player.shield < this.state.player.maxShield && this.state.cooldowns.hurt <= 0) {
-      this.state.player.shield = Math.min(this.state.player.maxShield, this.state.player.shield + this.state.player.shieldRegen * dt * 10);
+      const aegisMultiplier = hasSynergy(this.state, 'aegis') ? 2.2 : 1;
+      this.state.player.shield = Math.min(this.state.player.maxShield, this.state.player.shield + this.state.player.shieldRegen * aegisMultiplier * dt * 10);
     }
 
     const movement = this.input.movement;
