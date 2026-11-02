@@ -199,3 +199,10 @@ button { color: inherit; }
 .boot-error small { display: block; color: var(--muted); margin: 14px 0; }
 .boot-error button { border: 1px solid var(--cyan); color: var(--cyan); background: transparent; padding: 11px 20px; cursor: pointer; }
 @keyframes bootload { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+
+.aim-reticle { position: absolute; z-index: 4; left: 0; top: 0; width: 28px; height: 28px; margin: -14px 0 0 -14px; pointer-events: none; border: 1px solid rgba(174,255,231,.8); border-radius: 50%; box-shadow: 0 0 16px rgba(101,234,202,.18), inset 0 0 8px rgba(101,234,202,.12); transition: opacity .1s; }
+.aim-reticle:before, .aim-reticle:after { content: ''; position: absolute; background: rgba(174,255,231,.78); }
+.aim-reticle:before { width: 1px; height: 7px; left: 13px; top: -6px; box-shadow: 0 33px 0 rgba(174,255,231,.78); }
+.aim-reticle:after { height: 1px; width: 7px; top: 13px; left: -6px; box-shadow: 33px 0 0 rgba(174,255,231,.78); }
+.aim-reticle i { position: absolute; left: 11px; top: 11px; width: 4px; height: 4px; border-radius: 50%; background: var(--cyan-bright); box-shadow: 0 0 10px var(--cyan); }
+.aim-reticle b { position: absolute; inset: 5px; border: 1px dashed rgba(174,255,231,.24); border-radius: 50%; }
