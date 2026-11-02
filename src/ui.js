@@ -231,7 +231,6 @@ export class GameUI {
       ['战区', `${result.wave} / 05`], ['击杀', result.kills], ['用时', formatTime(result.time)], ['等级', result.level], ['最高连击', result.combo], ['伤害输出', Math.floor(result.damage)]
     ].map(([label,value]) => `<div><small>${label}</small><b>${value}</b></div>`).join('');
     this.root.querySelector('#result-build').textContent = result.build.length ? `本局构筑：${result.build.join(' · ')}` : '本局未安装强化模块';
-    this.el['restart-button'].onclick = onRestart;
   }
 
   setQuality(value) { this.el['quality-setting'].value = value; }
