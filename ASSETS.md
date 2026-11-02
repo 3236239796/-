@@ -12,6 +12,10 @@
 ## Fonts
 - Barlow Condensed and DM Sans are loaded from Google Fonts. Both font families are distributed under the SIL Open Font License; local system fallbacks are provided.
 
+## Environment HDRI
+- **Industrial Workshop Foundry** by Dimitrios Savva (photography) and Jarod Guest (processing), Poly Haven. CC0. Used for image-based lighting and the arena skybox at 1K resolution.
+  - Source and license: https://polyhaven.com/a/industrial_workshop_foundry
+
 ## Original assets
 The player, enemies, arena architecture, weapon geometry, UI, particles, and synthesized audio are original procedural work created for NULL//ASCENT.
 
