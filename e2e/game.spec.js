@@ -9,6 +9,13 @@ test('boots the game shell and exposes the playable start flow', async ({ page }
   await page.getByRole('button', { name: /开始远征|START EXPEDITION/i }).click();
   await expect(page.locator('[data-testid="game-hud"]')).toBeVisible();
   await expect(page.locator('[data-testid="run-state"]')).toContainText(/战区|SECTOR/i);
+  const before = await page.evaluate(() => window.__NULL_ASCENT__.game.player.position.z);
+  await page.keyboard.down('w');
+  await page.waitForTimeout(450);
+  await page.keyboard.up('w');
+  const after = await page.evaluate(() => window.__NULL_ASCENT__.game.player.position.z);
+  expect(after).toBeLessThan(before);
+  await expect(page.locator('#renderer-status')).toContainText(/WEBGPU|WEBGL2/i);
   expect(errors).toEqual([]);
 });
 
