@@ -135,6 +135,7 @@ export class GameUI {
 
   hideAll() {
     ['menu-screen','hud-layer','upgrade-screen','pause-screen','settings-screen','result-screen'].forEach(id => this.root.querySelector(`#${id}`).classList.add('hidden'));
+    this.el['aim-reticle'].classList.add('hidden');
   }
 
   showMenu(best = null) {
@@ -163,6 +164,7 @@ export class GameUI {
   }
 
   showUpgrade(choices, onSelect) {
+    this.el['aim-reticle'].classList.add('hidden');
     this.el['upgrade-grid'].replaceChildren();
     for (const [index, choice] of choices.entries()) {
       const button = document.createElement('button');
