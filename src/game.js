@@ -155,7 +155,6 @@ export class Game {
     this.world.pipeline.samples = value === 'high' ? 4 : 1;
     this.world.pipeline.bloomWeight = value === 'high' ? 0.22 : value === 'medium' ? 0.16 : 0.1;
     this.world.glow.intensity = value === 'high' ? 0.48 : value === 'medium' ? 0.35 : 0.22;
-    this.world.shadowGenerator.mapSize = value === 'high' ? 2048 : value === 'medium' ? 1024 : 512;
     this.world.shadowGenerator.blurKernel = value === 'high' ? 24 : 12;
   }
 
