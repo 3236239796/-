@@ -2,7 +2,7 @@ import {
   Scene, Color3, Color4, Vector3, ArcRotateCamera, HemisphericLight,
   DirectionalLight, PointLight, SpotLight, MeshBuilder, TransformNode,
   PBRMaterial, StandardMaterial, DynamicTexture, ShadowGenerator,
-  GlowLayer, DefaultRenderingPipeline, Texture, CubeTexture, Scalar
+  GlowLayer, DefaultRenderingPipeline, Texture, CubeTexture, HDRCubeTexture, Scalar
 } from '@babylonjs/core';
 
 const c3 = (hex) => Color3.FromHexString(hex);
@@ -270,20 +270,41 @@ export function createWorld(engine) {
   }
 
   let environmentPromise = Promise.resolve(false);
-  try {
-    const env = CubeTexture.CreateFromPrefilteredData('https://assets.babylonjs.com/environments/environmentSpecular.env', scene);
-    scene.environmentTexture = env;
-    scene.environmentIntensity = 0.7;
-    environmentPromise = new Promise(resolve => {
-      env.onLoadObservable.addOnce(() => {
-        try { scene.createDefaultSkybox(env, true, 120, 0.22, false); } catch (error) { console.warn('Optional skybox could not be created.', error); }
-        resolve(true);
+  const fallbackEnvironment = (resolve) => {
+    try {
+      const fallback = CubeTexture.CreateFromPrefilteredData('https://assets.babylonjs.com/environments/environmentSpecular.env', scene);
+      scene.environmentTexture = fallback;
+      fallback.onLoadObservable.addOnce(() => {
+        try { scene.createDefaultSkybox(fallback, true, 120, 0.22, false); } catch (error) { console.warn('Fallback skybox unavailable.', error); }
+        resolve(false);
       });
-      env.onError = () => resolve(false);
-      setTimeout(() => resolve(false), 7000);
+    } catch (error) {
+      console.warn('Environment lighting unavailable; direct lights remain active.', error);
+      resolve(false);
+    }
+  };
+  try {
+    environmentPromise = new Promise(resolve => {
+      const hdr = new HDRCubeTexture(
+        'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/industrial_workshop_foundry_1k.hdr',
+        scene, 128, false, true, false, true,
+        () => {
+          scene.environmentTexture = hdr;
+          scene.environmentIntensity = 0.72;
+          try { scene.createDefaultSkybox(hdr, true, 120, 0.22, false); } catch (error) { console.warn('HDR skybox unavailable.', error); }
+          resolve(true);
+        },
+        (message, exception) => {
+          console.warn('Poly Haven HDRI unavailable; using the Babylon environment probe.', message || exception);
+          fallbackEnvironment(resolve);
+        }
+      );
+      scene.environmentTexture = hdr;
+      scene.environmentIntensity = 0.72;
     });
   } catch (error) {
-    console.warn('Environment probe unavailable; direct lighting remains active.', error);
+    console.warn('HDRI initialization failed; using the Babylon environment probe.', error);
+    environmentPromise = new Promise(resolve => fallbackEnvironment(resolve));
   }
 
   const glow = new GlowLayer('controlled-emissive-glow', scene, { blurKernelSize: 48 });
