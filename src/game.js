@@ -107,6 +107,7 @@ export class Game {
     this.camera.radius = this.quality === 'low' ? 22 : 23;
     this.started = true;
     this.paused = false;
+    this.finished = false;
   }
 
   async start() {
@@ -610,7 +611,8 @@ export class Game {
   }
 
   finish(won, abandoned = false) {
-    if (this.state.status !== 'playing') return;
+    if (this.finished) return;
+    this.finished = true;
     this.state.status = won ? 'victory' : 'defeat';
     this.started = false;
     this.paused = false;
