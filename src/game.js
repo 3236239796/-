@@ -41,6 +41,7 @@ export class Game {
     this.bossSpawned = false;
     this.comboTimer = 0;
     this.damageFlash = 0;
+    this.invulnerable = 0;
     this.aimPoint = new Vector3(0, 0, -8);
     this.lastHud = 0;
     this.meta = this.loadMeta();
@@ -89,6 +90,7 @@ export class Game {
     this.bossSpawned = false;
     this.comboTimer = 0;
     this.damageFlash = 0;
+    this.invulnerable = 0;
     this.player.position.copyFromFloats(0, 0, 0);
     this.player.rotation.y = 0;
     this.player.setEnabled(true);
@@ -153,14 +155,9 @@ export class Game {
   setSfx(value) { this.audio.setSfxEnabled(value); }
 
   getAimPoint() {
-    const x = this.scene.pointerX;
-    const y = this.scene.pointerY;
-    const pick = this.scene.pick(x, y, mesh => mesh === this.world.floor);
-    if (pick?.hit && pick.pickedPoint) {
-      this.aimPoint.copyFrom(pick.pickedPoint);
-      this.aimPoint.y = 0;
-      return this.aimPoint;
-    }
+    const rect = this.canvas.getBoundingClientRect();
+    const x = this.input.pointer.x * this.engine.getRenderWidth() / Math.max(1, rect.width);
+    const y = this.input.pointer.y * this.engine.getRenderHeight() / Math.max(1, rect.height);
     const ray = this.scene.createPickingRay(x, y, Matrix.Identity(), this.camera);
     if (Math.abs(ray.direction.y) > 0.0001) {
       const distance = -ray.origin.y / ray.direction.y;
@@ -198,7 +195,6 @@ export class Game {
   spawnPlayerProjectile(direction, offset = 0, damageScale = 1) {
     const projectile = createProjectileVisual(this.scene, this.materials, true, 1);
     const dir = direction.clone();
-    if (offset) dir.rotateByQuaternionToRef?.(null, dir);
     const origin = this.player.position.add(new Vector3(0, 1.18, 0)).add(dir.scale(0.72));
     projectile.position.copyFrom(origin);
     projectile.lookAt(origin.add(dir), Math.PI / 2, 0, 0);
@@ -227,7 +223,7 @@ export class Game {
       this.spawnPlayerProjectile(rotated.normalize(), 0, i === 0 ? 1 : 0.82);
     }
     this.state.cooldowns.shot = this.state.player.fireRate;
-    this.state.progress.shotsFired += 1;
+    this.state.stats.shotsFired += 1;
     this.audio.play('shot', 0.65);
   }
 
@@ -243,7 +239,7 @@ export class Game {
     this.player.position.z = clamp(this.player.position.z + direction.z * distance, -19, 19);
     this.state.cooldowns.dash = this.state.player.dashCooldown;
     this.invulnerable = 0.34;
-    this.state.progress.dodges += 1;
+    this.state.stats.dodges += 1;
     this.player.rotation.y = Math.atan2(direction.x, direction.z);
     this.particles.push(...createImpact(this.scene, this.materials, start.add(new Vector3(0, 0.3, 0)), 'cyan', 14));
     if (this.state.player.dashDamage > 0 || hasSynergy(this.state, 'phase')) {
