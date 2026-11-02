@@ -275,7 +275,10 @@ export function createWorld(engine) {
     scene.environmentTexture = env;
     scene.environmentIntensity = 0.7;
     environmentPromise = new Promise(resolve => {
-      env.onLoadObservable.addOnce(() => resolve(true));
+      env.onLoadObservable.addOnce(() => {
+        try { scene.createDefaultSkybox(env, true, 120, 0.22, false); } catch (error) { console.warn('Optional skybox could not be created.', error); }
+        resolve(true);
+      });
       env.onError = () => resolve(false);
       setTimeout(() => resolve(false), 7000);
     });
