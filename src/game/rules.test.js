@@ -50,6 +50,12 @@ describe('run progression rules', () => {
     expect(new Set(choices.map(item => item.id)).size).toBe(3);
   });
 
+  it('applies percentage damage upgrades multiplicatively', () => {
+    const state = createRunState(9);
+    const upgraded = applyUpgrade(state, { id: 'damage-test', tags: ['prism'], effect: { damage: 0.25 } });
+    expect(upgraded.player.damage).toBeCloseTo(state.player.damage * 1.25);
+  });
+
   it('tracks tags and activates a three-stack set synergy', () => {
     let state = createRunState(8);
     for (let i = 0; i < 3; i += 1) {
