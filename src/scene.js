@@ -54,6 +54,54 @@ function makeFloorTexture(scene) {
   return texture;
 }
 
+
+function makeNormalTexture(scene) {
+  const size = 256;
+  const texture = new DynamicTexture('micro-machined-normal', { width: size, height: size }, scene, false);
+  const ctx = texture.getContext();
+  const image = ctx.createImageData(size, size);
+  const heights = new Float32Array(size * size);
+  const hash = (x, y) => {
+    const value = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+    return value - Math.floor(value);
+  };
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const i = y * size + x;
+      heights[i] = hash(x, y) * 0.22
+        + Math.sin(x * 0.19 + Math.sin(y * 0.11) * 2.5) * 0.12
+        + Math.cos(y * 0.23 + Math.sin(x * 0.07) * 1.8) * 0.1;
+    }
+  }
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const i = y * size + x;
+      const left = heights[y * size + Math.max(0, x - 1)];
+      const right = heights[y * size + Math.min(size - 1, x + 1)];
+      const up = heights[Math.max(0, y - 1) * size + x];
+      const down = heights[Math.min(size - 1, y + 1) * size + x];
+      let nx = (left - right) * 3.4;
+      let ny = (up - down) * 3.4;
+      const nz = 1;
+      const length = Math.hypot(nx, ny, nz) || 1;
+      nx /= length; ny /= length;
+      const o = i * 4;
+      image.data[o] = Math.round((nx * 0.5 + 0.5) * 255);
+      image.data[o + 1] = Math.round((ny * 0.5 + 0.5) * 255);
+      image.data[o + 2] = Math.round((nz / length * 0.5 + 0.5) * 255);
+      image.data[o + 3] = 255;
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  texture.update(false);
+  texture.wrapU = Texture.WRAP_ADDRESSMODE;
+  texture.wrapV = Texture.WRAP_ADDRESSMODE;
+  texture.uScale = 5;
+  texture.vScale = 5;
+  texture.level = 0.58;
+  return texture;
+}
+
 function addShadow(mesh, shadowGenerator, receive = true) {
   mesh.receiveShadows = receive;
   shadowGenerator.addShadowCaster(mesh, true);
@@ -106,6 +154,7 @@ export function createWorld(engine) {
 
   const floorMat = pbr(scene, 'brushed-titanium-floor', '#8b9998', 0.82, 0.42);
   floorMat.albedoTexture = makeFloorTexture(scene);
+  floorMat.bumpTexture = makeNormalTexture(scene);
   floorMat.useAmbientOcclusionFromMetallicTextureRed = false;
   const floor = MeshBuilder.CreateGround('arena-floor', { width: 42, height: 42, subdivisions: 2 }, scene);
   floor.material = floorMat;
@@ -254,10 +303,16 @@ export function createPlayerVisual(scene, shadowGenerator, materials) {
   }
   const backpack = MeshBuilder.CreateBox('runner-reactor-pack', { width: 0.62, height: 0.8, depth: 0.34 }, scene);
   backpack.parent = root; backpack.position = vec(0, 1.26, 0.33); backpack.material = materials.darkMetal;
+  const rifleBody = MeshBuilder.CreateBox('runner-prism-repeater', { width: 0.22, height: 0.24, depth: 0.72 }, scene);
+  rifleBody.parent = root; rifleBody.position = vec(0.67, 1.02, -0.42); rifleBody.rotation.x = -0.08; rifleBody.material = materials.midMetal;
+  const rifleBarrel = MeshBuilder.CreateCylinder('runner-repeater-barrel', { height: 0.62, diameter: 0.105, tessellation: 12 }, scene);
+  rifleBarrel.parent = root; rifleBarrel.position = vec(0.67, 1.03, -0.99); rifleBarrel.rotation.x = Math.PI / 2; rifleBarrel.material = materials.darkMetal;
+  const muzzle = MeshBuilder.CreateCylinder('runner-muzzle-emitter', { height: 0.12, diameter: 0.16, tessellation: 16 }, scene);
+  muzzle.parent = root; muzzle.position = vec(0.67, 1.03, -1.29); muzzle.rotation.x = Math.PI / 2; muzzle.material = materials.cyan;
   const blade = MeshBuilder.CreateBox('runner-phase-edge', { width: 0.09, height: 1.25, depth: 0.08 }, scene);
   blade.parent = root; blade.position = vec(0.7, 0.95, -0.1); blade.rotation.z = -0.28; blade.material = materials.cyan; blade.isVisible = false;
-  root.metadata = { core, visor, shoulders, blade };
-  for (const mesh of [body, chest, abdomen, helmet, visor, core, backpack, ...shoulders]) {
+  root.metadata = { core, visor, shoulders, blade, rifleBody, rifleBarrel, muzzle };
+  for (const mesh of [body, chest, abdomen, helmet, visor, core, backpack, rifleBody, rifleBarrel, muzzle, ...shoulders]) {
     mesh.isPickable = false;
     if (mesh !== core && mesh !== visor) addShadow(mesh, shadowGenerator, true);
   }
