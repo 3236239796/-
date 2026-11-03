@@ -1,6 +1,6 @@
 import { Vector3, Matrix, MeshBuilder, Color3, StandardMaterial, Scalar } from '@babylonjs/core';
 import { createWorld, createPlayerVisual, createEnemyVisual, createProjectileVisual, createTelegraph, createImpact, createXpOrb } from './scene.js';
-import { createRunState, applyDamage, grantExperience, applyUpgrade, getWaveConfig, getEnemyConfig, getUpgradeChoices, hasSynergy, canCompleteRun } from './game/rules.js';
+import { createRunState, applyDamage, grantExperience, applyUpgrade, getWaveConfig, getEnemyConfig, getUpgradeChoices, hasSynergy, canCompleteRun, getProjectileDamage, advanceEchoCombo, distancePointToSegment2D, selectChainTargets } from './game/rules.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const randomBetween = (min, max) => min + Math.random() * (max - min);
@@ -42,6 +42,10 @@ export class Game {
     this.comboTimer = 0;
     this.damageFlash = 0;
     this.invulnerable = 0;
+    this.echoHitCount = 0;
+    this.echoHitTimer = 999;
+    this.musicMood = 'menu';
+    this.audio.setMusicScene?.('menu');
     this.aimPoint = new Vector3(0, 0, -8);
     this.lastHud = 0;
     this.obstacles = [];
@@ -100,6 +104,9 @@ export class Game {
     this.comboTimer = 0;
     this.damageFlash = 0;
     this.invulnerable = 0;
+    this.echoHitCount = 0;
+    this.echoHitTimer = 999;
+    this.musicMood = 'exploration';
     this.player.position.copyFromFloats(0, 0, 0);
     this.player.rotation.y = 0;
     this.player.setEnabled(true);
@@ -113,6 +120,8 @@ export class Game {
   async start() {
     this.resetRun();
     await this.audio.unlock();
+    this.musicMood = 'exploration';
+    this.audio.setMusicScene?.('exploration');
     this.ui.showGame();
     this.ui.toast('裂隙连接建立 / 远征开始');
     this.audio.play('upgrade', 0.7);
@@ -124,12 +133,14 @@ export class Game {
   pause() {
     if (!this.started || this.paused || this.state.status !== 'playing') return;
     this.paused = true;
+    this.audio.setMusicScene?.('pause');
     this.ui.showPause({ wave: this.state.progress.wave, kills: this.state.progress.kills, time: this.state.progress.elapsed });
   }
 
   resume() {
     if (!this.started || !this.paused || this.pendingLevelUps > 0) return;
     this.paused = false;
+    this.audio.setMusicScene?.(this.musicMood);
     this.ui.el['pause-screen'].classList.add('hidden');
     this.ui.el['settings-screen'].classList.add('hidden');
     this.ui.el['hud-layer'].classList.remove('hidden');
@@ -145,6 +156,8 @@ export class Game {
   menu() {
     this.started = false;
     this.paused = false;
+    this.musicMood = 'menu';
+    this.audio.setMusicScene?.('menu');
     this.ui.showMenu(this.meta.best);
   }
 
@@ -266,16 +279,26 @@ export class Game {
     destination.x = clamp(destination.x, -18.2, 18.2);
     destination.z = clamp(destination.z, -18.2, 18.2);
     this.resolvePlayerPosition(destination);
+    this.resolvePlayerPosition(destination);
+    const dashEnd = destination.clone();
     this.player.position.copyFrom(destination);
     this.state.cooldowns.dash = this.state.player.dashCooldown;
-    this.invulnerable = 0.34;
+    this.invulnerable = hasSynergy(this.state, 'phase') ? 0.44 : 0.34;
     this.state.stats.dodges += 1;
     this.player.rotation.y = Math.atan2(direction.x, direction.z);
     this.particles.push(...createImpact(this.scene, this.materials, start.add(new Vector3(0, 0.3, 0)), 'cyan', 14));
-    if (this.state.player.dashDamage > 0 || hasSynergy(this.state, 'phase')) {
-      const radius = 2.1;
-      for (const enemy of this.enemies) {
-        if (flatDistance(this.player.position, enemy.mesh.position) < radius + enemy.stats.radius) this.damageEnemy(enemy, this.state.player.dashDamage || 36, false);
+    this.particles.push(...createImpact(this.scene, this.materials, dashEnd.add(new Vector3(0, 0.35, 0)), 'cyan', 10));
+    const phaseDamage = this.state.player.dashDamage + (hasSynergy(this.state, 'phase') ? 18 : 0);
+    if (phaseDamage > 0) {
+      const pathStart = { x: start.x, z: start.z };
+      const pathEnd = { x: dashEnd.x, z: dashEnd.z };
+      for (const enemy of [...this.enemies]) {
+        const distanceToPath = distancePointToSegment2D(
+          { x: enemy.mesh.position.x, z: enemy.mesh.position.z },
+          pathStart,
+          pathEnd
+        );
+        if (distanceToPath <= 1.25 + enemy.stats.radius) this.damageEnemy(enemy, phaseDamage, true);
       }
     }
     this.audio.play('dash');
@@ -361,21 +384,42 @@ export class Game {
     if (this.state.status === 'defeat') this.finish(false);
   }
 
-  damageEnemy(enemy, amount, special = false, critical = false) {
-    if (enemy.dead) return;
-    const wasAlive = enemy.hp > 0;
-    enemy.hp = Math.max(0, enemy.hp - amount);
+  damageEnemy(enemy, amount, special = false, critical = false, chainReaction = false) {
+    if (enemy.dead || amount <= 0) return 0;
+    const previousHp = enemy.hp;
+    const appliedDamage = Math.min(previousHp, amount);
+    enemy.hp = Math.max(0, previousHp - appliedDamage);
     enemy.hitFlash = 0.12;
-    this.state.stats.damageDealt += amount;
+    this.state.stats.damageDealt += appliedDamage;
     this.particles.push(...createImpact(this.scene, this.materials, enemy.mesh.position.add(new Vector3(0, 1, 0)), special || critical ? 'amber' : 'cyan', special ? 10 : 5));
-    if (enemy.hp <= 0 && wasAlive) this.killEnemy(enemy);
-    else if (!special) this.audio.play('hit', amount > 50 ? 1.3 : 0.6);
-    if (enemy.boss) {
+    if (enemy.boss && enemy.hp > 0) {
       this.state.boss = { name: enemy.type === 'choir' ? 'THE CHOIR' : 'THE HERALD', hp: enemy.hp, maxHp: enemy.maxHp, phaseLabel: enemy.hp / enemy.maxHp < 0.48 ? 'PHASE III' : enemy.hp / enemy.maxHp < 0.72 ? 'PHASE II' : 'PHASE I' };
     }
+    if (enemy.hp <= 0 && previousHp > 0) this.killEnemy(enemy, !chainReaction);
+    else if (critical) this.audio.play('crit', appliedDamage > 50 ? 1.3 : 0.9);
+    else if (!special) this.audio.play('hit', appliedDamage > 50 ? 1.3 : 0.6);
+    return appliedDamage;
   }
 
-  killEnemy(enemy) {
+  registerEchoHit(target, impactPosition, hitDamage) {
+    if (!this.state.build.upgrades.some(upgrade => upgrade.id === 'echo-lattice')) return;
+    const result = advanceEchoCombo(this.echoHitCount, this.echoHitTimer);
+    this.echoHitCount = result.hitCount;
+    this.echoHitTimer = 0;
+    if (!result.triggered) return;
+
+    const pulseOrigin = impactPosition.clone();
+    const nearby = this.enemies.filter(enemy =>
+      enemy !== target && !enemy.dead && flatDistance(pulseOrigin, enemy.mesh.position) <= 4.2
+    );
+    this.particles.push(...createImpact(this.scene, this.materials, pulseOrigin.add(new Vector3(0, 0.65, 0)), 'amber', 18));
+    for (const enemy of nearby) this.damageEnemy(enemy, Math.max(10, hitDamage * 0.55), true, false, true);
+    this.audio.play('pulse', 0.68);
+    this.ui.toast('回声脉冲 / ECHO DISCHARGE');
+  }
+
+  killEnemy(enemy, allowChain = true) {
+    const chainOrigin = { x: enemy.mesh.position.x, z: enemy.mesh.position.z };
     enemy.dead = true;
     if (enemy.action?.ring) {
       enemy.action.ring.dispose();
@@ -395,13 +439,27 @@ export class Game {
       heal.metadata.value = 1;
       this.pickups.push({ mesh: heal, value: 1, kind: 'heal', life: 20 });
     }
-    if (hasSynergy(this.state, 'echo')) {
-      for (const other of this.enemies) {
-        if (other !== enemy && flatDistance(enemy.mesh.position, other.mesh.position) < 4.4) this.damageEnemy(other, 30, true);
-      }
-    }
     enemy.mesh.dispose();
     this.enemies = this.enemies.filter(item => item !== enemy);
+    if (allowChain && this.state.player.chain > 0) {
+      const candidates = this.enemies.filter(other => !other.dead).map(other => ({
+        enemy: other,
+        x: other.mesh.position.x,
+        z: other.mesh.position.z
+      }));
+      const targets = selectChainTargets(chainOrigin, candidates, this.state.player.chain, 6.5);
+      for (const target of targets) {
+        if (target.enemy.dead) continue;
+        this.particles.push(...createImpact(this.scene, this.materials, target.enemy.mesh.position.add(new Vector3(0, 1, 0)), 'amber', 8));
+        this.damageEnemy(target.enemy, Math.max(12, this.state.player.damage * 0.55), true, false, true);
+      }
+      if (targets.length) this.audio.play('pulse', 0.5);
+    }
+    if (hasSynergy(this.state, 'echo')) {
+      for (const other of [...this.enemies]) {
+        if (other !== enemy && flatDistance(chainOrigin, other.mesh.position) < 4.4) this.damageEnemy(other, 30, true, false, true);
+      }
+    }
     this.audio.play(enemy.boss ? 'boss' : 'crit', enemy.boss ? 0.9 : 0.55);
     if (enemy.boss) {
       this.state.progress.bossDefeated = true;
@@ -431,6 +489,7 @@ export class Game {
   showNextUpgrade() {
     if (this.pendingLevelUps <= 0) { this.paused = false; return; }
     this.paused = true;
+    this.audio.setMusicScene?.('pause');
     const choices = getUpgradeChoices(this.state, this.state.seed + this.state.progress.level * 7919 + this.pendingLevelUps);
     this.ui.showUpgrade(choices, choice => {
       this.state = applyUpgrade(this.state, choice);
@@ -441,6 +500,7 @@ export class Game {
       else {
         this.ui.hideUpgrade();
         this.paused = false;
+        this.audio.setMusicScene?.(this.musicMood);
         this.updateHUD(true);
       }
     });
@@ -462,6 +522,8 @@ export class Game {
     this.waveClock = 0;
     this.bossSpawned = false;
     this.state.boss = null;
+    this.musicMood = 'exploration';
+    this.audio.setMusicScene?.('exploration');
     this.state.player.hp = Math.min(this.state.player.maxHp, this.state.player.hp + 12);
     this.state.player.shield = Math.min(this.state.player.maxShield, this.state.player.shield + 14);
     this.ui.toast(`进入战区 ${String(this.state.progress.wave).padStart(2,'0')} / SECTOR ADVANCED`);
@@ -532,10 +594,12 @@ export class Game {
         this.projectiles = this.projectiles.filter(item => item !== projectile);
         continue;
       }
-      const target = this.enemies.find(enemy => flatDistance(projectile.mesh.position, enemy.mesh.position.add(new Vector3(0, 1, 0))) < enemy.stats.radius + 0.42);
+      const target = this.enemies.find(enemy => !enemy.dead && flatDistance(projectile.mesh.position, enemy.mesh.position.add(new Vector3(0, 1, 0))) < enemy.stats.radius + 0.42);
       if (target) {
-        const damage = projectile.crit ? projectile.damage * this.state.player.critDamage : projectile.damage;
+        const impactPosition = target.mesh.position.clone();
+        const damage = getProjectileDamage(this.state, target, projectile.damage, projectile.crit);
         this.damageEnemy(target, damage, false, projectile.crit);
+        this.registerEchoHit(target, impactPosition, damage);
         if (projectile.pierce > 0) projectile.pierce -= 1;
         else {
           projectile.mesh.dispose();
@@ -613,6 +677,8 @@ export class Game {
     if (this.finished) return;
     this.finished = true;
     this.state.status = won ? 'victory' : 'defeat';
+    this.musicMood = won ? 'victory' : 'defeat';
+    this.audio.setMusicScene?.(this.musicMood);
     this.started = false;
     this.paused = false;
     this.saveMeta(won);
@@ -651,6 +717,8 @@ export class Game {
     this.invulnerable = Math.max(0, (this.invulnerable ?? 0) - dt);
     this.damageFlash = Math.max(0, this.damageFlash - dt);
     this.comboTimer -= dt;
+    this.echoHitTimer += dt;
+    if (this.echoHitTimer > 1.25) this.echoHitCount = 0;
     if (this.comboTimer <= 0) progress.combo = 0;
     if (this.state.player.shield < this.state.player.maxShield && this.state.cooldowns.hurt <= 0) {
       const aegisMultiplier = hasSynergy(this.state, 'aegis') ? 2.2 : 1;
@@ -685,6 +753,15 @@ export class Game {
     this.updateProjectiles(dt);
     this.updatePickups(dt);
     this.updateParticles(dt);
+    const nextMusicMood = this.state.boss
+      ? 'boss'
+      : this.enemies.some(enemy => flatDistance(this.player.position, enemy.mesh.position) < 9)
+        ? 'combat'
+        : 'exploration';
+    if (nextMusicMood !== this.musicMood) {
+      this.musicMood = nextMusicMood;
+      this.audio.setMusicScene?.(nextMusicMood);
+    }
     this.updateHUD();
     this.input.consumeFrame();
   }
