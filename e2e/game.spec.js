@@ -34,7 +34,8 @@ test('build-time CC0 soundtrack assets are served locally', async ({ page }) => 
   for (const track of ['sector', 'airy', 'urgent', 'pulse', 'transmission', 'victory']) {
     const response = await page.request.get(`/audio/${track}.mp3`);
     expect(response.ok(), `${track}.mp3 should be available`).toBeTruthy();
-    expect(Number(response.headers()['content-length'] ?? 0)).toBeGreaterThan(20_000);
+    expect(response.headers()['content-type']).toContain('audio/mpeg');
+    expect((await response.body()).byteLength).toBeGreaterThan(20_000);
   }
 });
 
