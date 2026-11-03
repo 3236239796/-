@@ -279,7 +279,6 @@ export class Game {
     destination.x = clamp(destination.x, -18.2, 18.2);
     destination.z = clamp(destination.z, -18.2, 18.2);
     this.resolvePlayerPosition(destination);
-    this.resolvePlayerPosition(destination);
     const dashEnd = destination.clone();
     this.player.position.copyFrom(destination);
     this.state.cooldowns.dash = this.state.player.dashCooldown;
