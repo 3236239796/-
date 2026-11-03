@@ -22,7 +22,7 @@ npm install
 npm run dev
 ```
 
-Open the URL printed by Vite. Chrome/Edge with WebGPU support uses WebGPU; other supported browsers use WebGL fallback.
+Open the URL printed by Vite. The predev/prebuild hooks download and verify the CC0 soundtrack into ignored `public/audio/`. Chrome/Edge with WebGPU support uses WebGPU; other supported browsers use WebGL fallback.
 
 ## Controls
 
