@@ -452,7 +452,7 @@ export class Game {
         this.particles.push(...createImpact(this.scene, this.materials, target.enemy.mesh.position.add(new Vector3(0, 1, 0)), 'amber', 8));
         this.damageEnemy(target.enemy, Math.max(12, this.state.player.damage * 0.55), true, false, true);
       }
-      if (targets.length) this.audio.play('pulse', 0.5);
+      if (targets.length) this.audio.play('chain', 0.82);
     }
     if (hasSynergy(this.state, 'echo')) {
       for (const other of [...this.enemies]) {
