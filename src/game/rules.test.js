@@ -80,6 +80,13 @@ describe('run progression rules', () => {
     expect(getProjectileDamage(state, fullHealth, 40, true)).toBeCloseTo(87.5);
   });
 
+  it('applies Chain Lightning stacks as additional jumps', () => {
+    let state = createRunState(12);
+    state = applyUpgrade(state, { id: 'chain-lightning', tags: ['echo'], effect: { chain: 1 } });
+    state = applyUpgrade(state, { id: 'chain-lightning', tags: ['echo'], effect: { chain: 1 } });
+    expect(state.player.chain).toBe(2);
+  });
+
   it('triggers Echo Lattice on every third consecutive hit and resets after the window', () => {
     let combo = advanceEchoCombo(0, 9);
     expect(combo).toEqual({ hitCount: 1, triggered: false });
