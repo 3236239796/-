@@ -8,7 +8,11 @@ export class AudioDirector {
     this.musicEnabled = true;
     this.sfxEnabled = true;
     this.musicTimer = null;
-    this.step = 0;
+    this.musicScene = 'menu';
+    this.musicNodes = [];
+    this.musicBuffers = new Map();
+    this.musicLoads = new Map();
+    this.musicTransitionId = 0;
     this.droneNodes = [];
     this.volume = 0.72;
   }
@@ -17,6 +21,7 @@ export class AudioDirector {
     try {
     if (this.context) {
       if (this.context.state === 'suspended') await this.context.resume();
+      if (this.musicEnabled && this.musicNodes.length === 0) this.startMusic();
       return;
     }
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -47,7 +52,7 @@ export class AudioDirector {
   startDrone() {
     const ctx = this.context;
     const pad = ctx.createGain();
-    pad.gain.value = 0.11;
+    pad.gain.value = 0.055;
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.frequency.value = 380;
@@ -85,7 +90,7 @@ export class AudioDirector {
     noiseFilter.frequency.value = 420;
     noiseFilter.Q.value = 0.45;
     const noiseGain = ctx.createGain();
-    noiseGain.gain.value = 0.035;
+    noiseGain.gain.value = 0.018;
     noise.connect(noiseFilter);
     noiseFilter.connect(noiseGain);
     noiseGain.connect(this.musicBus);
@@ -94,40 +99,95 @@ export class AudioDirector {
   }
 
   startMusic() {
-    if (!this.context || this.musicTimer) return;
-    const sequence = [0, 3, 7, 10, 7, 5, 3, 12, 10, 7, 5, 2, 3, 7, 10, 14];
-    const scale = [0, 2, 3, 7, 10, 12, 14, 15];
-    this.musicTimer = window.setInterval(() => {
-      if (!this.context || !this.enabled || !this.musicEnabled || this.context.state !== 'running') return;
-      const ctx = this.context;
-      const note = sequence[this.step % sequence.length];
-      const semitone = scale[note % scale.length];
-      const base = 110 * Math.pow(2, semitone / 12);
-      const t = ctx.currentTime + 0.02;
-      const osc = ctx.createOscillator();
-      const filter = ctx.createBiquadFilter();
+    if (!this.context || !this.musicEnabled) return;
+    void this.setMusicScene(this.musicScene || 'menu');
+  }
+
+  async loadMusicTrack(name) {
+    if (this.musicBuffers.has(name)) return this.musicBuffers.get(name);
+    if (!this.musicLoads.has(name)) {
+      const load = (async () => {
+        const url = new URL(`audio/${name}.mp3`, window.location.href);
+        const response = await fetch(url, { cache: 'force-cache' });
+        if (!response.ok) throw new Error(`Music asset ${name} failed to load (${response.status}).`);
+        const encoded = await response.arrayBuffer();
+        const decoded = await this.context.decodeAudioData(encoded.slice(0));
+        this.musicBuffers.set(name, decoded);
+        return decoded;
+      })();
+      this.musicLoads.set(name, load);
+      load.catch(() => this.musicLoads.delete(name));
+    }
+    return this.musicLoads.get(name);
+  }
+
+  async setMusicScene(scene) {
+    this.musicScene = scene;
+    if (!this.context || !this.musicEnabled || !this.enabled) return;
+    const scenes = {
+      menu: [{ track: 'airy', gain: 0.48 }],
+      exploration: [{ track: 'sector', gain: 0.72 }, { track: 'airy', gain: 0.16 }],
+      combat: [{ track: 'urgent', gain: 0.76 }, { track: 'pulse', gain: 0.12 }],
+      boss: [{ track: 'urgent', gain: 0.66 }, { track: 'pulse', gain: 0.38 }],
+      pause: [{ track: 'airy', gain: 0.3 }],
+      victory: [{ track: 'victory', gain: 0.88, loop: false }],
+      defeat: [{ track: 'transmission', gain: 0.7, loop: false }]
+    };
+    const layers = scenes[scene] ?? scenes.exploration;
+    const transitionId = ++this.musicTransitionId;
+    const loaded = await Promise.all(layers.map(async layer => {
+      try {
+        return { ...layer, buffer: await this.loadMusicTrack(layer.track) };
+      } catch (error) {
+        console.warn(`Music layer unavailable: ${layer.track}`, error);
+        return null;
+      }
+    }));
+    if (transitionId !== this.musicTransitionId || !this.context || !this.musicEnabled) return;
+
+    const ctx = this.context;
+    const now = ctx.currentTime;
+    const fadeDuration = scene === 'victory' ? 0.65 : 1.8;
+    const nextNodes = [];
+    for (const layer of loaded.filter(Boolean)) {
+      const source = ctx.createBufferSource();
       const gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(base, t);
-      osc.detune.setValueAtTime(this.step % 4 === 0 ? -7 : 4, t);
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(900 + (this.step % 4) * 180, t);
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.045, t + 0.08);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.05);
-      osc.connect(filter);
-      filter.connect(gain);
+      source.buffer = layer.buffer;
+      source.loop = layer.loop ?? true;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(layer.gain, now + fadeDuration);
+      source.connect(gain);
       gain.connect(this.musicBus);
-      osc.start(t);
-      osc.stop(t + 1.1);
-      if (this.step % 4 === 0) this.lowPulse(48 + (this.step % 3) * 5, 0.55);
-      this.step += 1;
-    }, 520);
+      source.start(now);
+      nextNodes.push({ source, gain });
+    }
+
+    for (const node of this.musicNodes) {
+      const param = node.gain.gain;
+      param.cancelScheduledValues(now);
+      param.setValueAtTime(param.value, now);
+      param.linearRampToValueAtTime(0, now + fadeDuration);
+      try { node.source.stop(now + fadeDuration + 0.06); } catch {}
+    }
+    this.musicNodes = nextNodes;
   }
 
   stopMusic() {
-    if (this.musicTimer) window.clearInterval(this.musicTimer);
+    this.musicTransitionId += 1;
     this.musicTimer = null;
+    if (!this.context) {
+      this.musicNodes = [];
+      return;
+    }
+    const now = this.context.currentTime;
+    for (const node of this.musicNodes) {
+      const param = node.gain.gain;
+      param.cancelScheduledValues(now);
+      param.setValueAtTime(param.value, now);
+      param.linearRampToValueAtTime(0, now + 0.18);
+      try { node.source.stop(now + 0.22); } catch {}
+    }
+    this.musicNodes = [];
   }
 
   lowPulse(frequency = 48, duration = 0.45) {
@@ -201,6 +261,7 @@ export class AudioDirector {
       shot: () => { this.tone({ frequency: 510, endFrequency: 170, duration: 0.095, type: 'sawtooth', gain: 0.065 * i, filter: 1800 }); this.noise({ duration: 0.055, gain: 0.028 * i, lowpass: 2200, highpass: 500 }); },
       hit: () => { this.tone({ frequency: 190, endFrequency: 68, duration: 0.13, type: 'triangle', gain: 0.08 * i, filter: 950 }); this.noise({ duration: 0.07, gain: 0.035 * i, lowpass: 1100 }); },
       crit: () => { this.tone({ frequency: 880, endFrequency: 220, duration: 0.22, type: 'sine', gain: 0.12 * i, filter: 3200 }); this.tone({ frequency: 1320, endFrequency: 660, duration: 0.12, type: 'triangle', gain: 0.045 * i }); },
+      chain: () => { this.tone({ frequency: 1180, endFrequency: 360, duration: 0.19, type: 'sine', gain: 0.095 * i, filter: 3600 }); this.tone({ frequency: 1640, endFrequency: 740, duration: 0.12, type: 'triangle', gain: 0.035 * i, filter: 4200 }); },
       dash: () => { this.noise({ duration: 0.24, gain: 0.12 * i, lowpass: 1500, highpass: 170 }); this.tone({ frequency: 310, endFrequency: 70, duration: 0.28, type: 'sawtooth', gain: 0.06 * i, filter: 700 }); },
       pulse: () => { this.tone({ frequency: 72, endFrequency: 36, duration: 0.75, type: 'sine', gain: 0.19 * i, filter: 240 }); this.tone({ frequency: 440, endFrequency: 70, duration: 0.5, type: 'triangle', gain: 0.11 * i, filter: 1200 }); this.noise({ duration: 0.4, gain: 0.11 * i, lowpass: 1800 }); },
       hurt: () => { this.tone({ frequency: 145, endFrequency: 48, duration: 0.32, type: 'sawtooth', gain: 0.14 * i, filter: 430 }); },
