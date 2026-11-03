@@ -25,14 +25,14 @@ const tracks = [
     name: 'urgent',
     sources: [
       { url: 'https://opengameart.org/sites/default/files/urgent_0.mp3', bytes: 2275786 },
-      { url: 'https://raw.githubusercontent.com/kachumbali/game-space/main/audio/urgent.mp3', bytes: 683408, processedLoop: false }
+      { url: 'https://raw.githubusercontent.com/kachumbali/game-space/main/audio/urgent.mp3', bytes: 683408, mirror: '96 kbps CC0 re-encode' }
     ]
   },
   {
     name: 'pulse',
     sources: [
       { url: 'https://opengameart.org/sites/default/files/pulse_0.mp3', bytes: 2845256 },
-      { url: 'https://raw.githubusercontent.com/kachumbali/game-space/main/audio/pulse.mp3', bytes: 854249, processedLoop: false }
+      { url: 'https://raw.githubusercontent.com/kachumbali/game-space/main/audio/pulse.mp3', bytes: 854249, mirror: '96 kbps CC0 re-encode' }
     ]
   },
   {
@@ -46,7 +46,7 @@ const tracks = [
     name: 'victory',
     sources: [
       { url: 'https://opengameart.org/sites/default/files/victory_4.mp3', bytes: 235101 },
-      { url: 'https://raw.githubusercontent.com/kachumbali/game-space/main/audio/victory.mp3', bytes: 71202, processedLoop: false }
+      { url: 'https://raw.githubusercontent.com/kachumbali/game-space/main/audio/victory.mp3', bytes: 71202, mirror: '96 kbps CC0 re-encode' }
     ]
   }
 ];
@@ -83,7 +83,7 @@ for (const track of tracks) {
         throw new Error(`integrity mismatch: received ${bytes.byteLength} bytes`);
       }
       await writeFile(destination, bytes);
-      const quality = source.processedLoop ? '128 kbps crossfaded loop mirror' : 'source MP3';
+      const quality = source.processedLoop ? '128 kbps crossfaded loop mirror' : source.mirror ?? 'original source MP3';
       process.stdout.write(`[audio] ${track.name}.mp3: ${bytes.byteLength} bytes, ${quality}\n`);
       saved = true;
       break;
