@@ -29,6 +29,15 @@ test('boots the game shell and exposes the playable start flow', async ({ page }
   expect(errors).toEqual([]);
 });
 
+test('build-time CC0 soundtrack assets are served locally', async ({ page }) => {
+  await page.goto('/');
+  for (const track of ['sector', 'airy', 'urgent', 'pulse', 'transmission', 'victory']) {
+    const response = await page.request.get(`/audio/${track}.mp3`);
+    expect(response.ok(), `${track}.mp3 should be available`).toBeTruthy();
+    expect(Number(response.headers()['content-length'] ?? 0)).toBeGreaterThan(20_000);
+  }
+});
+
 test('pause and resume controls are accessible', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /开始远征|START EXPEDITION/i }).click();
