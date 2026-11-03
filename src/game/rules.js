@@ -1,7 +1,7 @@
 export const UPGRADE_POOL = [
-  { id: 'echo-lattice', name: '回声晶格', description: '连续命中会叠加回响，第三次命中触发额外脉冲。', rarity: 'rare', tags: ['echo'], maxStacks: 5, effect: { damage: 0.08 } },
+  { id: 'echo-lattice', name: '回声晶格', description: '每连续命中三次，向目标周围释放回响脉冲，造成额外伤害。', rarity: 'rare', tags: ['echo'], maxStacks: 5, effect: { damage: 0.08 } },
   { id: 'prism-split', name: '棱镜分裂', description: '主武器额外发射一枚偏转弹体。', rarity: 'rare', tags: ['prism'], maxStacks: 3, effect: { projectiles: 1 } },
-  { id: 'phase-shear', name: '相位切割', description: '冲刺结束时留下能量切线，对路径敌人造成伤害。', rarity: 'rare', tags: ['phase'], maxStacks: 3, effect: { dashDamage: 18 } },
+  { id: 'phase-shear', name: '相位切割', description: '冲刺路径上的敌人受到相位切割伤害。', rarity: 'rare', tags: ['phase'], maxStacks: 3, effect: { dashDamage: 18 } },
   { id: 'aegis-weave', name: '神盾编织', description: '最大护盾提高 18，护盾恢复速度提高。', rarity: 'uncommon', tags: ['aegis'], maxStacks: 4, effect: { maxShield: 18, shieldRegen: 0.35 } },
   { id: 'overclock', name: '超频线圈', description: '射击间隔缩短 12%。', rarity: 'common', tags: ['prism'], maxStacks: 5, effect: { fireRate: 0.88 } },
   { id: 'singularity', name: '微型奇点', description: '暴击率提高 7%，暴击伤害提高 20%。', rarity: 'uncommon', tags: ['echo'], maxStacks: 4, effect: { critChance: 0.07, critDamage: 0.2 } },
@@ -141,6 +141,54 @@ export function applyUpgrade(state, upgrade) {
   if (effect.maxHp) { next.player.maxHp += effect.maxHp; next.player.hp = Math.min(next.player.maxHp, next.player.hp + (effect.heal ?? effect.maxHp)); }
   if (effect.maxShield) { next.player.maxShield += effect.maxShield; next.player.shield = Math.min(next.player.maxShield, next.player.shield + effect.maxShield); }
   return next;
+}
+
+export function getProjectileDamage(state, enemy, baseDamage, critical = false) {
+  const openerBonus = enemy && enemy.hp >= enemy.maxHp ? Math.max(0, state.player.opener ?? 0) : 0;
+  const criticalMultiplier = critical ? Math.max(1, state.player.critDamage ?? 1) : 1;
+  return Math.max(0, baseDamage * (1 + openerBonus) * criticalMultiplier);
+}
+
+export function advanceEchoCombo(hitCount, timeSinceHit, windowSeconds = 1.25) {
+  const current = timeSinceHit <= windowSeconds ? hitCount : 0;
+  const next = current + 1;
+  const triggered = next >= 3;
+  return { hitCount: triggered ? 0 : next, triggered };
+}
+
+export function distancePointToSegment2D(point, start, end) {
+  const dx = end.x - start.x;
+  const dz = end.z - start.z;
+  const lengthSquared = dx * dx + dz * dz;
+  if (lengthSquared <= 0.000001) return Math.hypot(point.x - start.x, point.z - start.z);
+  const projection = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.z - start.z) * dz) / lengthSquared));
+  const closestX = start.x + projection * dx;
+  const closestZ = start.z + projection * dz;
+  return Math.hypot(point.x - closestX, point.z - closestZ);
+}
+
+export function selectChainTargets(origin, candidates, maxJumps, maxRange) {
+  const remaining = candidates.filter(candidate => !candidate.dead);
+  const selected = [];
+  let current = { x: origin.x, z: origin.z };
+  const limit = Math.max(0, Math.floor(maxJumps));
+  for (let jump = 0; jump < limit && remaining.length; jump += 1) {
+    let bestIndex = -1;
+    let bestDistance = maxRange;
+    for (let index = 0; index < remaining.length; index += 1) {
+      const candidate = remaining[index];
+      const distance = Math.hypot(candidate.x - current.x, candidate.z - current.z);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+      }
+    }
+    if (bestIndex < 0) break;
+    const [target] = remaining.splice(bestIndex, 1);
+    selected.push(target);
+    current = { x: target.x, z: target.z };
+  }
+  return selected;
 }
 
 export function hasSynergy(state, tag) {
