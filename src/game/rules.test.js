@@ -7,6 +7,10 @@ import {
   getWaveConfig,
   getUpgradeChoices,
   hasSynergy,
+  getProjectileDamage,
+  advanceEchoCombo,
+  distancePointToSegment2D,
+  selectChainTargets,
   canCompleteRun
 } from './rules.js';
 
@@ -63,6 +67,45 @@ describe('run progression rules', () => {
     }
     expect(state.build.tags.echo).toBe(3);
     expect(hasSynergy(state, 'echo')).toBe(true);
+  });
+
+
+  it('applies Predator Mark only to enemies that still have full health', () => {
+    let state = createRunState(11);
+    state = applyUpgrade(state, { id: 'predator-mark', tags: ['prism'], effect: { opener: 0.25 } });
+    const fullHealth = { hp: 100, maxHp: 100 };
+    const damaged = { hp: 99, maxHp: 100 };
+    expect(getProjectileDamage(state, fullHealth, 40)).toBeCloseTo(50);
+    expect(getProjectileDamage(state, damaged, 40)).toBeCloseTo(40);
+    expect(getProjectileDamage(state, fullHealth, 40, true)).toBeCloseTo(87.5);
+  });
+
+  it('triggers Echo Lattice on every third consecutive hit and resets after the window', () => {
+    let combo = advanceEchoCombo(0, 9);
+    expect(combo).toEqual({ hitCount: 1, triggered: false });
+    combo = advanceEchoCombo(combo.hitCount, 0.2);
+    expect(combo).toEqual({ hitCount: 2, triggered: false });
+    combo = advanceEchoCombo(combo.hitCount, 0.4);
+    expect(combo).toEqual({ hitCount: 0, triggered: true });
+    expect(advanceEchoCombo(2, 1.5)).toEqual({ hitCount: 1, triggered: false });
+  });
+
+  it('measures distance to the full dash segment, not only its endpoint', () => {
+    const start = { x: 0, z: 0 };
+    const end = { x: 10, z: 0 };
+    expect(distancePointToSegment2D({ x: 5, z: 0.8 }, start, end)).toBeCloseTo(0.8);
+    expect(distancePointToSegment2D({ x: 12, z: 0 }, start, end)).toBeCloseTo(2);
+    expect(distancePointToSegment2D({ x: 4, z: 3 }, start, start)).toBeCloseTo(5);
+  });
+
+  it('chains lightning to the nearest enemies in hop order and respects jump range', () => {
+    const candidates = [
+      { id: 'far', x: 8, z: 0 },
+      { id: 'first', x: 2, z: 0 },
+      { id: 'second', x: 4, z: 0 },
+      { id: 'out-of-range', x: 20, z: 0 }
+    ];
+    expect(selectChainTargets({ x: 0, z: 0 }, candidates, 3, 3).map(item => item.id)).toEqual(['first', 'second']);
   });
 
   it('cannot complete the run before the final boss is defeated', () => {
